@@ -18,7 +18,6 @@ SQLite is simple and portable but serializes writes, so Hikari is limited to one
 
 ## Status and scope
 
-- **Status:** Accepted
 - **Date:** 2026-11-24
 - **Scope:** Backend API, scheduling domain, persistence, asynchronous rescheduling, and operations dashboard.
 
