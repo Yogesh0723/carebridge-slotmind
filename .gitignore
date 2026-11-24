@@ -1,0 +1,26 @@
+# Java/Maven
+backend/target/
+*.class
+
+# Persistent local state
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
+# Node/Vite
+frontend/node_modules/
+frontend/dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+application-local.yml
+
+# IDE/OS
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.iml
+.DS_Store
+Thumbs.db
