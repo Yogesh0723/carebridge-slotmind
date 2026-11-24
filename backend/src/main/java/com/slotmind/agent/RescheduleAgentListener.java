@@ -35,7 +35,7 @@ public class RescheduleAgentListener {
     suggestions = ss;
   }
 
-  @Async
+  @Async("taskExecutor")
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void handle(DisruptionEvent e) {

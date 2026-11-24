@@ -11,6 +11,7 @@ import com.slotmind.repository.ProviderRepository;
 import com.slotmind.repository.SlotRepository;
 import com.slotmind.repository.SuggestionRepository;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,12 +33,17 @@ public class SuggestionServiceImpl implements SuggestionService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public List<RescheduleSuggestion> findForAppointment(String id) {
-    return suggestions.findByAppointmentId(id).stream()
-        .filter(s -> s.getStatus() != SuggestionStatus.PENDING
-            || (s.getSlot().getStatus() == SlotStatus.OPEN
-                && s.getSlot().getProvider().getStatus() == ProviderStatus.AVAILABLE))
+    List<RescheduleSuggestion> resolved = suggestions
+        .findByAppointmentIdAndStatusNot(id, SuggestionStatus.PENDING);
+    List<RescheduleSuggestion> pending = suggestions
+        .findByAppointmentIdAndStatus(id, SuggestionStatus.PENDING)
+        .stream()
+        .filter(suggestion -> suggestion.getSlot().getStatus() == SlotStatus.OPEN
+            && suggestion.getSlot().getProvider().getStatus() == ProviderStatus.AVAILABLE)
         .toList();
+    return Stream.concat(resolved.stream(), pending.stream()).toList();
   }
 
   @Transactional

@@ -34,6 +34,7 @@ public class ProviderServiceImpl implements ProviderService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public List<Provider> findAll() {
     return repo.findAll();
   }

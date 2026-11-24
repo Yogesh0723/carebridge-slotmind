@@ -33,6 +33,7 @@ public class SlotServiceImpl implements SlotService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public List<Slot> findAll() {
     return slots.findAll();
   }
@@ -58,6 +59,7 @@ public class SlotServiceImpl implements SlotService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public List<Slot> findAvailable() {
     return slots.findByStatusAndProviderStatus(SlotStatus.OPEN, ProviderStatus.AVAILABLE);
   }

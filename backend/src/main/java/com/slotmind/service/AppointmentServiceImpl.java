@@ -34,6 +34,7 @@ public class AppointmentServiceImpl implements AppointmentService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public List<Appointment> findAll() { return appointments.findAll(); }
 
   @Override
