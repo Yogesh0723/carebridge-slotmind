@@ -94,11 +94,14 @@ class SuggestionServiceImplTest {
 
     when(slots.findById("SLT-5")).thenReturn(Optional.of(slot));
     when(appointments.findById("APT-1")).thenReturn(Optional.of(appt));
+    when(providers.findById("PRV-2")).thenReturn(Optional.of(drSmith));
     when(suggestions.findByAppointmentIdAndSlotId("APT-1", "SLT-5")).thenReturn(List.of(oldRejected));
     when(suggestions.save(any(RescheduleSuggestion.class))).thenAnswer(i -> i.getArgument(0));
 
     RescheduleSuggestion created = service.create("APT-1", "SLT-5", TriggerReason.PROVIDER_OFFLINE, 0.95, "New explanation", "script", "PRV-2");
     assertNotNull(created);
     assertEquals(SuggestionStatus.PENDING, created.getStatus());
+    assertEquals(1, created.getRecommendationRank());
+    assertEquals(drSmith, created.getAlternateProvider());
   }
 }

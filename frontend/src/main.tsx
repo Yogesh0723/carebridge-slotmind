@@ -31,7 +31,7 @@ function App() {
     try {
       const [a, p, sl] = await Promise.all([api.appointments(), api.providers(), api.slots()]);
       setAppointments(a); setProviders(p); setSlots(sl);
-      const pending = await Promise.all(a.filter(x => x.status === "RESCHEDULE_PENDING").map(async x => [x.id, (await api.suggestions(x.id)).filter(s => s.status === "PENDING")] as const));
+      const pending = await Promise.all(a.filter(x => x.status === "RESCHEDULE_PENDING").map(async x => [x.id, (await api.suggestions(x.id)).filter(s => s.status === "PENDING").sort((left, right) => left.recommendationRank - right.recommendationRank)] as const));
       const nextSuggestions = Object.fromEntries(pending);
       const newIds = Object.values(nextSuggestions).flat().map(s => s.id).filter(id => !seenSuggestions.includes(id));
       if (newIds.length) window.setTimeout(() => setSeenSuggestions(ids => [...ids, ...newIds]), 2500);
@@ -96,7 +96,48 @@ function App() {
           <p>No open same-specialty slots. Front desk triage required: review cross-coverage, contact on-call supervisor, or reschedule for next operating day.</p>
         </div>
       )}
-      {(suggestions[a.id] || []).map(s => <div className={`suggestion ${!seenSuggestions.includes(s.id) ? "new-suggestion" : ""}`} key={s.id}><div><div style={{display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px"}}><span className="trigger-badge">{s.reason}</span><span style={{fontSize: "11px", fontWeight: 700, color: s.confidence >= 0.8 ? "#16875d" : "#c38418"}}>AI Match: {Math.round(s.confidence * 100)}%</span></div><strong>Suggested: {s.providerName}</strong><p>{s.explanation}</p><button className="ghost-button" onClick={() => openStream(a.id)}>Open live AI reasoning</button><div className="script-box"><div className="script-label">PATIENT SCRIPT (HUMAN-IN-THE-LOOP CHECKPOINT)</div><p>{s.patientScript || `We found a suitable replacement appointment with ${s.providerName}.`}</p><button className="copy-script-button" onClick={() => void copyScript(s.id, s.patientScript || `We found a suitable replacement appointment with ${s.providerName}.`)} aria-label="Copy patient script">{copied === s.id ? <Check size={14} /> : <Copy size={14} />} {copied === s.id ? "Copied!" : "Copy script"}</button></div><div className="confidence"><span style={{width: `${Math.round(s.confidence * 100)}%`, background: s.confidence >= 0.8 ? "#39c98b" : "#e1a62d"}} /></div></div><div className="suggestion-actions"><button className="small-button" disabled={busy === `accept-${s.id}`} onClick={() => void action(`accept-${s.id}`, () => api.accept(s.id), "Appointment rebooked atomically")}>{busy === `accept-${s.id}` ? <Loader2 size={14} className="spin" /> : "Accept"}</button><button className="ghost-button" disabled={busy === `reject-${s.id}`} onClick={() => void action(`reject-${s.id}`, () => api.reject(s.id), "Suggestion rejected")}>{busy === `reject-${s.id}` ? <Loader2 size={14} className="spin" /> : "Reject"}</button></div></div>)}</article>)}</div></section>
+      {(suggestions[a.id] || []).length > 0 && <div className="suggestions-heading"><strong>AI ranked options</strong><span>{suggestions[a.id].length} suggestions · best match first</span></div>}
+      {(suggestions[a.id] || []).map((s, index) => (
+        <div className={`suggestion ranked-suggestion rank-${s.recommendationRank || index + 1} ${!seenSuggestions.includes(s.id) ? "new-suggestion" : ""}`} key={s.id}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span className="rank-badge">#{s.recommendationRank || index + 1}</span>
+              <span className="trigger-badge">{s.reason}</span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: s.confidence >= 0.8 ? "#16875d" : "#c38418" }}>
+                AI Match: {Math.round(s.confidence * 100)}%
+              </span>
+            </div>
+            <strong>Suggested: {s.providerName}</strong>
+            <p>{s.explanation}</p>
+            <button className="ghost-button" onClick={() => openStream(a.id)}>Open live AI reasoning</button>
+            <div className="script-box">
+              <div className="script-label">PATIENT SCRIPT (HUMAN-IN-THE-LOOP CHECKPOINT)</div>
+              <p>{s.patientScript || `We found a suitable replacement appointment with ${s.providerName}.`}</p>
+              <button
+                className="copy-script-button"
+                onClick={() => void copyScript(s.id, s.patientScript || `We found a suitable replacement appointment with ${s.providerName}.`)}
+                aria-label="Copy patient script"
+              >
+                {copied === s.id ? <Check size={14} /> : <Copy size={14} />} {copied === s.id ? "Copied!" : "Copy script"}
+              </button>
+            </div>
+            <div className="confidence">
+              <span style={{ width: `${Math.round(s.confidence * 100)}%`, background: s.confidence >= 0.8 ? "#39c98b" : "#e1a62d" }} />
+            </div>
+          </div>
+          <div className="suggestion-actions">
+            <button className="small-button" disabled={busy === `accept-${s.id}`} onClick={() => void action(`accept-${s.id}`, () => api.accept(s.id), "Appointment rebooked atomically")}>
+              {busy === `accept-${s.id}` ? <Loader2 size={14} className="spin" /> : "Accept"}
+            </button>
+            <button className="ghost-button" disabled={busy === `reject-${s.id}`} onClick={() => void action(`reject-${s.id}`, () => api.reject(s.id), "Suggestion rejected")}>
+              {busy === `reject-${s.id}` ? <Loader2 size={14} className="spin" /> : "Reject"}
+            </button>
+          </div>
+        </div>
+      ))}
+     </article>)}
+        </div>
+      </section>
       {bookingOpen && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-heading"><h2>Confirm booking</h2><button className="icon-button" onClick={() => setBookingOpen(false)} aria-label="Close booking dialog"><X size={18} /></button></div><p className="modal-copy">{form.providerId ? `${provider(form.providerId)?.id} · ${provider(form.providerId)?.name}` : "Choose a provider"} · {form.slotId ? date(slots.find(s => s.id === form.slotId)?.startTime || "") : "Choose an available slot"}</p><button className="primary-button" disabled={busy === "create-appointment"} onClick={() => void action("create-appointment", async () => { await api.createAppointment(form); setForm(emptyForm); setBookingOpen(false); }, "Appointment booked")}>{busy === "create-appointment" ? <Loader2 size={16} className="spin" /> : "Confirm appointment"}</button></div></div>}
       {streamAppointment && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card reasoning-modal"><div className="modal-heading"><h2>Live AI reasoning</h2><button className="icon-button" onClick={() => setStreamAppointment(null)} aria-label="Close reasoning dialog"><X size={18} /></button></div><p className="stream-text">{streamText}<span className="cursor">▋</span></p></div></div>}
     </section></main>;

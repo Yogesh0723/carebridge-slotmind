@@ -2,6 +2,7 @@ package com.slotmind.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.slotmind.domain.enums.ProviderStatus;
 import com.slotmind.domain.enums.SlotStatus;
 import com.slotmind.domain.enums.TriggerReason;
@@ -13,6 +14,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.net.http.HttpTimeoutException;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +38,7 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
   private final String token;
   private final String model;
   private final String product;
+  private final MeterRegistry meterRegistry;
 
   public AiSchedulingStrategy(
       @Value("${slotmind.ai.url}") String url,
@@ -46,11 +54,17 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       String model,
       String product,
       HttpClient client) {
+    this(url, token, model, product, client, null);
+  }
+
+  public AiSchedulingStrategy(String url, String token, String model, String product,
+      HttpClient client, MeterRegistry meterRegistry) {
     this.url = url;
     this.token = token;
     this.model = model;
     this.product = product;
     this.client = client;
+    this.meterRegistry = meterRegistry;
   }
 
   @Override
@@ -91,44 +105,69 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       JsonNode root = mapper.readTree(httpResponse.body());
       String content = root.path("choices").path(0).path("message").path("content").asText();
       if (content == null || content.isBlank()) {
+        count("empty_output");
         throw new IllegalStateException("AI gateway returned empty choices");
       }
 
       String cleanedJson = content.replace("```json", "").replace("```", "").trim();
       JsonNode answer = mapper.readTree(cleanedJson);
-
-      JsonNode slotIdNode = answer.path("slotId");
-      if (!slotIdNode.isTextual() || slotIdNode.asText().isBlank()) {
-        throw new IllegalStateException("AI response missing 'slotId'");
-      }
-      String recommendedSlotId = slotIdNode.asText();
-
-      // Explicit validation against actual open candidate slots
-      Slot selected = validCandidates.stream()
-          .filter(s -> s.getId().equals(recommendedSlotId) && s.getStatus() == SlotStatus.OPEN)
-          .findFirst()
-          .orElseThrow(() -> new IllegalStateException("AI recommended slot " + recommendedSlotId + " is not valid or not OPEN"));
-
-      double confidence = answer.path("confidence").asDouble(0.85);
-      if (confidence < 0.0 || confidence > 1.0) {
-        confidence = Math.max(0.0, Math.min(1.0, confidence));
+      List<JsonNode> answers = answer.isArray() ? new ArrayList<>() : List.of(answer);
+      if (answer.isArray()) answer.forEach(answers::add);
+      if (answers.isEmpty()) {
+        count("empty_output");
+        throw new IllegalStateException("AI response contained no recommendations");
       }
 
-      String reasoning = answer.path("reasoning").asText("Selected slot best matches specialty and schedule continuity.");
-      String patientScript = answer.path("patientScript").asText(
-          "Hello " + appointment.getPatientName() + ", we found a replacement appointment with "
-              + selected.getProvider().getName() + " on " + selected.getStartTime() + ". Would that work for you?"
-      );
-
-      String alternateProviderId = answer.path("alternateProviderId").isTextual()
-          ? answer.path("alternateProviderId").asText()
-          : selected.getProvider().getId();
-
-      log.info("AI successfully recommended slot {} for appointment {} with confidence {}", selected.getId(), appointment.getId(), confidence);
-      return List.of(new Recommendation(selected, confidence, reasoning, patientScript, alternateProviderId));
+      List<Recommendation> recommendations = new ArrayList<>();
+      Set<String> recommendedSlotIds = new HashSet<>();
+      for (int index = 0; index < answers.size() && recommendations.size() < 3; index++) {
+        JsonNode candidateAnswer = answers.get(index);
+        JsonNode slotIdNode = candidateAnswer.path("slotId");
+        if (!slotIdNode.isTextual() || slotIdNode.asText().isBlank()) {
+          count("invalid_json");
+          continue;
+        }
+        String recommendedSlotId = slotIdNode.asText();
+        Slot selected = validCandidates.stream()
+            .filter(s -> s.getId().equals(recommendedSlotId) && s.getStatus() == SlotStatus.OPEN)
+            .findFirst().orElse(null);
+        if (selected == null) {
+          count("invalid_slot");
+          continue;
+        }
+        if (!recommendedSlotIds.add(recommendedSlotId)) {
+          count("duplicate_slot");
+          continue;
+        }
+        double confidence = Math.max(0.0, Math.min(1.0, candidateAnswer.path("confidence").asDouble(0.85)));
+        String reasoning = candidateAnswer.path("reasoning").asText("Selected slot best matches specialty and schedule continuity.");
+        String patientScript = candidateAnswer.path("patientScript").asText(
+            "Hello " + appointment.getPatientName() + ", we found a replacement appointment with "
+                + selected.getProvider().getName() + " on " + selected.getStartTime() + ". Would that work for you?");
+        String alternateProviderId = candidateAnswer.path("alternateProviderId").isTextual()
+            ? candidateAnswer.path("alternateProviderId").asText() : selected.getProvider().getId();
+        recommendations.add(new Recommendation(selected, recommendations.size() + 1, confidence,
+            reasoning, patientScript, alternateProviderId));
+      }
+      if (recommendations.isEmpty()) throw new IllegalStateException("AI returned no valid recommendations");
+      log.info("AI successfully ranked {} recommendations for appointment {}", recommendations.size(), appointment.getId());
+      return recommendations;
     } catch (Exception ex) {
+      if (ex instanceof JsonProcessingException) count("invalid_json");
+      if (isTimeout(ex)) count("timeout");
       log.warn("AI scheduling failed for appointment {}: {}; executing rule-based fallback", appointment.getId(), ex.getMessage());
       return fallback.recommend(appointment, reason, slots);
+    }
+  }
+
+  private boolean isTimeout(Exception ex) {
+    return ex instanceof HttpTimeoutException || ex.getCause() instanceof HttpTimeoutException
+        || ex instanceof CompletionException && ex.getCause() instanceof HttpTimeoutException;
+  }
+
+  private void count(String outcome) {
+    if (meterRegistry != null) {
+      meterRegistry.counter("slotmind.ai.responses", "outcome", outcome).increment();
     }
   }
 
@@ -136,15 +175,15 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
     if (reason == TriggerReason.PROVIDER_OFFLINE) {
       return "You are SlotMind's clinical scheduling agent. The original doctor is OFFLINE. "
           + "Your recovery goal: identify an available alternative provider with identical specialty and earliest opening. "
-          + "Output ONLY strict JSON with fields: slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
+          + "Output ONLY a JSON array with up to 3 ranked objects, each containing slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
     } else if (reason == TriggerReason.SLOT_CANCELLED) {
       return "You are SlotMind's clinical scheduling agent. The original time slot was CANCELLED. "
           + "Your recovery goal: find a new open slot, strictly PREFERRING the same doctor to maintain patient continuity, or same specialty if needed. "
-          + "Output ONLY strict JSON with fields: slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
+          + "Output ONLY a JSON array with up to 3 ranked objects, each containing slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
     } else {
       return "You are SlotMind's clinical scheduling agent assisting on-demand patient rescheduling. "
           + "Balance patient continuity with the original doctor and nearest available slot. "
-          + "Output ONLY strict JSON with fields: slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
+          + "Output ONLY a JSON array with up to 3 ranked objects, each containing slotId, alternateProviderId, confidence (0.0-1.0), reasoning, patientScript.";
     }
   }
 
@@ -180,7 +219,9 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       if (s.getEquipment() != null) sb.append(" | Equip: ").append(s.getEquipment());
       sb.append("\n");
     }
-    sb.append("\nRespond with ONLY valid JSON: {\"slotId\": \"...\", \"alternateProviderId\": \"...\", \"confidence\": 0.85, \"reasoning\": \"...\", \"patientScript\": \"...\"}");
+    sb.append("\\nRespond with ONLY a valid JSON array containing up to 3 distinct objects ranked best-first. "
+        + "Return as many different valid options as the candidate list supports (prefer three): "
+        + "[{\\\"slotId\\\": \\\"...\\\", \\\"alternateProviderId\\\": \\\"...\\\", \\\"confidence\\\": 0.85, \\\"reasoning\\\": \\\"...\\\", \\\"patientScript\\\": \\\"...\\\"}]");
     return sb.toString();
   }
 

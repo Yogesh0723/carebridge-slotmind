@@ -87,6 +87,35 @@ class AiSchedulingStrategyTest {
   }
 
   @Test
+  void parsesThreeDistinctAiSuggestionsInBestFirstOrder() throws IOException, InterruptedException {
+    AiSchedulingStrategy strategy = new AiSchedulingStrategy(
+        "https://ai.example.com", "secret-token", "gpt-4", "PC1", mockClient);
+
+    Provider drChen = new Provider("PRV-1", "Dr. Chen", ProviderSpecialty.GENERAL);
+    Provider drSmith = new Provider("PRV-2", "Dr. Smith", ProviderSpecialty.GENERAL);
+    Slot originalSlot = new Slot("SLT-ORIG", drChen, LocalDateTime.now().plusDays(1), 30);
+    Appointment appointment = new Appointment("APT-3", "Jordan", "555-1234", AppointmentType.ROUTINE, drChen, originalSlot);
+    Slot first = new Slot("SLT-FIRST", drSmith, LocalDateTime.now().plusHours(2), 30);
+    Slot second = new Slot("SLT-SECOND", drChen, LocalDateTime.now().plusHours(3), 30);
+    Slot third = new Slot("SLT-THIRD", drSmith, LocalDateTime.now().plusHours(4), 30);
+
+    String responseBody = """
+        {"choices":[{"message":{"content":"[{\\"slotId\\":\\"SLT-FIRST\\",\\"confidence\\":0.95,\\"reasoning\\":\\"Best fit\\"},{\\"slotId\\":\\"SLT-SECOND\\",\\"confidence\\":0.85,\\"reasoning\\":\\"Continuity\\"},{\\"slotId\\":\\"SLT-FIRST\\",\\"confidence\\":0.80,\\"reasoning\\":\\"Duplicate\\"},{\\"slotId\\":\\"SLT-THIRD\\",\\"confidence\\":0.75,\\"reasoning\\":\\"Backup\\"}]"}}]}
+        """;
+    when(mockResponse.statusCode()).thenReturn(200);
+    when(mockResponse.body()).thenReturn(responseBody);
+    when(mockClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+
+    List<Recommendation> recs = strategy.recommend(appointment, TriggerReason.SLOT_CANCELLED,
+        List.of(first, second, third));
+
+    assertEquals(List.of("SLT-FIRST", "SLT-SECOND", "SLT-THIRD"),
+        recs.stream().map(r -> r.slot().getId()).toList());
+    assertEquals(List.of(1, 2, 3), recs.stream().map(Recommendation::rank).toList());
+    assertEquals(0.95, recs.get(0).confidence());
+  }
+
+  @Test
   void fallbackWhenAiReturnsInvalidSlotId() throws IOException, InterruptedException {
     AiSchedulingStrategy strategy = new AiSchedulingStrategy(
         "https://ai.example.com", "secret-token", "gpt-4", "PC1", mockClient);

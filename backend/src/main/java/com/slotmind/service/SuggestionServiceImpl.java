@@ -90,6 +90,14 @@ public class SuggestionServiceImpl implements SuggestionService {
   public RescheduleSuggestion create(
       String aid, String sid, TriggerReason r, double c, String e, String p,
       String alternateProviderId) {
+    return create(aid, sid, r, 1, c, e, p, alternateProviderId);
+  }
+
+  @Override
+  @Transactional
+  public RescheduleSuggestion create(
+      String aid, String sid, TriggerReason r, int rank, double c, String e, String p,
+      String alternateProviderId) {
     var slot = slots.findById(sid).orElseThrow();
     var appointment = appointments.findById(aid).orElseThrow();
     if (appointment.getStatus() != AppointmentStatus.RESCHEDULE_PENDING
@@ -108,12 +116,16 @@ public class SuggestionServiceImpl implements SuggestionService {
 
     Provider altProvider = null;
     if (alternateProviderId != null && !alternateProviderId.isBlank()) {
-      altProvider = providers.findById(alternateProviderId).orElse(slot.getProvider());
+      altProvider = providers.findById(alternateProviderId)
+          .orElseThrow(() -> new IllegalStateException("Alternate provider not found"));
+      if (!altProvider.getId().equals(slot.getProvider().getId())) {
+        throw new IllegalStateException("Alternate provider does not own selected slot");
+      }
     }
 
     return suggestions.save(
         new RescheduleSuggestion(
             "SUG-" + System.currentTimeMillis() + "-" + (existing.size() + 1),
-            appointment, slot, altProvider, r, c, e, p));
+            appointment, slot, altProvider, r, Math.max(1, rank), c, e, p));
   }
 }

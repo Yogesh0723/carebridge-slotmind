@@ -11,4 +11,8 @@ public interface SuggestionService {
   RescheduleSuggestion reject(String id);
   RescheduleSuggestion create(String appointmentId, String slotId, TriggerReason reason,
       double confidence, String explanation, String patientScript, String alternateProviderId);
+
+  RescheduleSuggestion create(String appointmentId, String slotId, TriggerReason reason,
+      int recommendationRank, double confidence, String explanation, String patientScript,
+      String alternateProviderId);
 }

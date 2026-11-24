@@ -20,6 +20,7 @@ export interface Suggestion {
   id: string;
   appointmentId: string;
   slotId: string;
+  recommendationRank: number;
   status: string;
   reason: string;
   confidence: number;

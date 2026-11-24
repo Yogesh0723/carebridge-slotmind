@@ -38,6 +38,7 @@ public class RescheduleSuggestion {
   private TriggerReason reason;
 
   private double confidence;
+  private int recommendationRank = 1;
   private String explanation;
   private String patientScript;
   @Version private long version;
@@ -46,11 +47,17 @@ public class RescheduleSuggestion {
 
   public RescheduleSuggestion(
       Appointment a, Slot s, Provider alternate, TriggerReason r, double c, String e, String script) {
+    this(a, s, alternate, r, 1, c, e, script);
+  }
+
+  public RescheduleSuggestion(
+      Appointment a, Slot s, Provider alternate, TriggerReason r, int rank, double c, String e, String script) {
     appointment = a;
     slot = s;
     alternateProvider = alternate;
     reason = r;
     confidence = c;
+    recommendationRank = rank;
     explanation = e;
     patientScript = script;
     createdAt = LocalDateTime.now();
@@ -58,6 +65,12 @@ public class RescheduleSuggestion {
 
   public RescheduleSuggestion(String id, Appointment a, Slot s, Provider alternate, TriggerReason r, double c, String e, String script) {
     this(a, s, alternate, r, c, e, script);
+    this.id = id;
+  }
+
+  public RescheduleSuggestion(String id, Appointment a, Slot s, Provider alternate, TriggerReason r,
+      int rank, double c, String e, String script) {
+    this(a, s, alternate, r, rank, c, e, script);
     this.id = id;
   }
 
@@ -87,6 +100,8 @@ public class RescheduleSuggestion {
   public double getConfidence() {
     return confidence;
   }
+
+  public int getRecommendationRank() { return recommendationRank; }
 
   public String getExplanation() {
     return explanation;

@@ -5,6 +5,7 @@ import com.slotmind.domain.model.Appointment;
 import com.slotmind.domain.model.Slot;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Deterministic rule-based scheduling strategy:
@@ -28,6 +29,7 @@ public class RuleBasedSchedulingStrategy implements SchedulingStrategy {
     boolean crossCoverage = sameSpecialty.isEmpty();
     List<Slot> candidatePool = crossCoverage ? slots : sameSpecialty;
 
+    AtomicInteger rank = new AtomicInteger(1);
     return candidatePool.stream()
         .sorted(Comparator
             .comparing((Slot s) -> !s.getProvider().getId().equals(a.getProvider().getId()))
@@ -51,7 +53,7 @@ public class RuleBasedSchedulingStrategy implements SchedulingStrategy {
                 + " providers are unavailable today, but we arranged a cross-coverage opening with "
                 + s.getProvider().getName() + " (" + s.getProvider().getSpecialty() + ") on "
                 + s.getStartTime() + ". Would this work for you?";
-            return new Recommendation(s, 0.65, explanation, script, s.getProvider().getId());
+            return new Recommendation(s, rank.getAndIncrement(), 0.65, explanation, script, s.getProvider().getId());
           }
 
           String explanation = sameDoc
@@ -63,7 +65,7 @@ public class RuleBasedSchedulingStrategy implements SchedulingStrategy {
               : "Hello " + a.getPatientName() + ", Dr. " + a.getProvider().getName()
                   + " is unavailable, but we found an opening with colleague " + s.getProvider().getName()
                   + " on " + s.getStartTime() + ". Would you like to take this appointment?";
-          return new Recommendation(s, sameDoc ? 0.95 : 0.85, explanation, script, s.getProvider().getId());
+          return new Recommendation(s, rank.getAndIncrement(), sameDoc ? 0.95 : 0.85, explanation, script, s.getProvider().getId());
         })
         .toList();
   }

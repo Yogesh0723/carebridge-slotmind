@@ -104,7 +104,7 @@ We adopted **Option 3: Strategy Registry Pattern**.
 
 ### Tradeoffs
 - **Pros:** Completely decoupled; adding new strategies (e.g., patient waitlist routing or downstream queue pressure) requires zero changes to the agentic loop; fail-safe fallback built into AI strategy.
-- **Cons:** Strategy is selected at application context initialization; switching mid-run without restart requires dynamic bean proxying (deferred to Sprint 3).
+- **Cons:** Strategy is selected at application context initialization; switching mid-run without restart requires dynamic bean proxying. This remains explicitly deferred to Sprint 3; the currently supported operational switch is `SLOTMIND_STRATEGY` followed by a controlled restart.
 
 ---
 
@@ -183,10 +183,24 @@ We adopted **Option 3: Asynchronous After-Commit Event Decoupling**.
   Before calling the scheduling strategy, the listener checks:
   1. Is the appointment still `RESCHEDULE_PENDING`?
   2. If the trigger was `PROVIDER_OFFLINE`, is the original provider still offline? If the doctor recovered to `AVAILABLE` in the interim, the agent silently aborts.
+- **Persistence isolation**: `Propagation.REQUIRES_NEW` is applied to the listener method itself. Suggestion writes therefore commit in an independent transaction after the source transaction has committed; an LLM failure or one invalid recommendation cannot roll back the disruption transaction or other recommendations.
 
 ### Tradeoffs
 - **Pros:** Instant API response times; guaranteed transactional consistency; zero risk of orphan suggestions from rolled-back transactions; scalable thread pool.
 - **Cons:** Eventual consistency: front-desk dashboard requires polling (implemented every 4 seconds) or SSE to render newly generated suggestions.
+
+### Agent Failure and Observability Contract
+
+The agent is fail-safe and never allows an LLM response to book or mutate an appointment directly. The strategy first validates all candidates against current domain state, then persists at most three suggestions with durable ranks. AI failures use the deterministic rule strategy and are classified independently:
+
+| Outcome | Behavior | Metric |
+|---|---|---|
+| Timeout | Return up to three rule-based recommendations | `slotmind.ai.responses{outcome="timeout"}` |
+| Invalid JSON/schema | Ignore malformed entries; use rule fallback if none remain | `...{outcome="invalid_json"}` |
+| Invalid/stale slot | Reject slot IDs not present, not open, or not domain-valid | `...{outcome="invalid_slot"}` |
+| Empty output | Use rule fallback | `...{outcome="empty_output"}` |
+
+Metrics contain no patient identifiers or prompt content. Runtime strategy selection remains configuration-based (`SLOTMIND_STRATEGY`) and requires a controlled restart; dynamic switching is a future management-plane feature, not an implicit behavior.
 
 ---
 
@@ -209,8 +223,10 @@ We adopted **Option 2: Human-in-the-Loop with Guardrailed AI Guidance**.
    - System instructions explicitly instruct the model to produce both technical `reasoning` and an empathetic, conversational `patientScript` (e.g. *"Hello John, Dr. Chen had an emergency today. We reserved an appointment with Dr. Sharma at 2:30 PM..."*).
    - Staff can copy this script with one click from the UI.
 2. **AI Guardrails & Verification**:
-   - The AI output JSON schema is strictly verified: `slotId`, `alternateProviderId`, `confidence`, `reasoning`, `patientScript`.
-   - `AiSchedulingStrategy` verifies that the recommended `slotId` exists in the candidates list and is currently `OPEN`. If invalid, it silently falls back to `RuleBasedSchedulingStrategy`.
+    - The AI output is accepted as either one JSON recommendation or a JSON array. At most three recommendations are retained and assigned ranks 1–3.
+    - Every returned `slotId` is verified against the current candidate list and `OPEN` status; invalid entries are discarded. If no valid AI entry remains, `RuleBasedSchedulingStrategy` returns up to three validated fallback recommendations.
+    - `recommendationRank` is persisted on `RescheduleSuggestion` and returned by the API so ranking is durable and visible to the UI.
+    - LLM outcomes are separately metered as `timeout`, `invalid_json`, `invalid_slot`, and `empty_output`; no patient contact data is included in the prompt.
 3. **Sprint 2 Extensibility**:
    - `RoomConstraintStrategy` is already implemented and registered under `StrategyRegistry`.
    - Entity models already persist `roomRequirement`, `equipmentRequirement`, and `patientPreference`.
@@ -233,5 +249,8 @@ We adopted **Option 2: Human-in-the-Loop with Guardrailed AI Guidance**.
 | **Pluggable Engine** | `SchedulingStrategy` interface resolved via `StrategyRegistry` | `AiSchedulingStrategyTest`, `RuleBasedSchedulingStrategyTest` |
 | **Agentic Decoupling** | `@Async` + `@TransactionalEventListener(phase = AFTER_COMMIT)` | `RescheduleAgentListenerTest` |
 | **Fail-Safe AI** | Strict candidate validation + automatic rule-based fallback | `AiSchedulingStrategyTest.fallbackWhenAiReturnsInvalidSlotId()` |
+| **Ranked Recommendations** | AI or rule strategy returns at most three ranked options; rank is persisted on each suggestion | `Recommendation.rank`, `RescheduleSuggestion.recommendationRank` |
+| **LLM Telemetry** | Timeout, invalid JSON, invalid slot, and empty output are separate Micrometer outcomes | `slotmind.ai.responses{outcome=...}` |
+| **Agent Persistence Isolation** | `@Transactional(propagation = REQUIRES_NEW)` on the async listener | `RescheduleAgentListener.handle()` |
 | **Error Handling** | `@RestControllerAdvice` maps exceptions to HTTP 400, 404, 409 | `ApiErrorHandlerTest` |
 | **Sprint 1 Walkthrough** | Book → `PATCH Provider OFFLINE` → Auto Suggestions → Accept → Atomic Rebook | E2E verified via live app and test suite |
