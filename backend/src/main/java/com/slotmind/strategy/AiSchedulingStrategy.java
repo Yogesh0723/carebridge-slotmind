@@ -97,10 +97,11 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       String cleanedJson = content.replace("```json", "").replace("```", "").trim();
       JsonNode answer = mapper.readTree(cleanedJson);
 
-      String recommendedSlotId = answer.path("slotId").asText();
-      if (recommendedSlotId == null || recommendedSlotId.isBlank()) {
+      JsonNode slotIdNode = answer.path("slotId");
+      if (!slotIdNode.isTextual() || slotIdNode.asText().isBlank()) {
         throw new IllegalStateException("AI response missing 'slotId'");
       }
+      String recommendedSlotId = slotIdNode.asText();
 
       // Explicit validation against actual open candidate slots
       Slot selected = validCandidates.stream()

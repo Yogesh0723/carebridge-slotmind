@@ -118,4 +118,36 @@ class AiSchedulingStrategyTest {
     // Should safely fallback to rule-based and return the real candidate
     assertEquals("SLT-REAL", recs.get(0).slot().getId());
   }
+
+  @Test
+  void fallbackWhenAiReturnsNullSlotId() throws IOException, InterruptedException {
+    AiSchedulingStrategy strategy = new AiSchedulingStrategy(
+        "https://ai.example.com", "secret-token", "gpt-4", "PC1", mockClient);
+
+    Provider drChen = new Provider("PRV-1", "Dr. Chen", ProviderSpecialty.GENERAL);
+    Slot originalSlot = new Slot("SLT-ORIG", drChen, LocalDateTime.now().plusDays(1), 30);
+    Appointment appointment = new Appointment("APT-NULL", "John", "555-1234", AppointmentType.ROUTINE,
+        drChen, originalSlot);
+    Slot candidate = new Slot("SLT-REAL", drChen, LocalDateTime.now().plusHours(2), 30);
+
+    String responseBody = """
+        {
+          "choices": [
+            {
+              "message": {
+                "content": "{\\"slotId\\": null, \\"confidence\\": 0.9}"
+              }
+            }
+          ]
+        }
+        """;
+
+    when(mockResponse.statusCode()).thenReturn(200);
+    when(mockResponse.body()).thenReturn(responseBody);
+    when(mockClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+
+    List<Recommendation> recs = strategy.recommend(appointment, TriggerReason.PROVIDER_OFFLINE, List.of(candidate));
+
+    assertEquals("SLT-REAL", recs.get(0).slot().getId());
+  }
 }
