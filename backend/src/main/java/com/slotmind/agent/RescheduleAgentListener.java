@@ -3,14 +3,17 @@ package com.slotmind.agent;
 import com.slotmind.domain.enums.AppointmentStatus;
 import com.slotmind.domain.enums.ProviderStatus;
 import com.slotmind.domain.enums.SlotStatus;
-import com.slotmind.domain.event.*;
-import com.slotmind.repository.*;
-import com.slotmind.service.*;
-import com.slotmind.strategy.*;
+import com.slotmind.domain.event.DisruptionEvent;
+import com.slotmind.repository.AppointmentRepository;
+import com.slotmind.repository.SlotRepository;
+import com.slotmind.service.SuggestionService;
+import com.slotmind.strategy.SchedulingStrategy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.*;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +36,7 @@ public class RescheduleAgentListener {
   }
 
   @Async
-  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void handle(DisruptionEvent e) {
     try {

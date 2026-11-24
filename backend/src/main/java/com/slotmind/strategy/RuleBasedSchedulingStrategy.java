@@ -1,8 +1,10 @@
 package com.slotmind.strategy;
 
-import com.slotmind.domain.enums.*;
-import com.slotmind.domain.model.*;
-import java.util.*;
+import com.slotmind.domain.enums.TriggerReason;
+import com.slotmind.domain.model.Appointment;
+import com.slotmind.domain.model.Slot;
+import java.util.Comparator;
+import java.util.List;
 
 public class RuleBasedSchedulingStrategy implements SchedulingStrategy {
   public List<Recommendation> recommend(Appointment a, TriggerReason r, List<Slot> slots) {

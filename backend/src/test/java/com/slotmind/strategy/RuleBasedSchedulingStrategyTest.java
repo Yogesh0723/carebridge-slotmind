@@ -3,8 +3,12 @@ package com.slotmind.strategy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.slotmind.domain.enums.*;
-import com.slotmind.domain.model.*;
+import com.slotmind.domain.enums.AppointmentType;
+import com.slotmind.domain.enums.ProviderSpecialty;
+import com.slotmind.domain.enums.TriggerReason;
+import com.slotmind.domain.model.Appointment;
+import com.slotmind.domain.model.Provider;
+import com.slotmind.domain.model.Slot;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;

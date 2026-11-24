@@ -1,8 +1,16 @@
 package com.slotmind.domain.model;
 
-import com.slotmind.domain.enums.*;
-import jakarta.persistence.*;
-import java.util.*;
+import com.slotmind.domain.enums.SuggestionStatus;
+import com.slotmind.domain.enums.TriggerReason;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -21,7 +29,7 @@ public class RescheduleSuggestion {
   @ManyToOne
   private Provider alternateProvider;
 
-  private java.time.LocalDateTime createdAt;
+  private LocalDateTime createdAt;
 
   @Enumerated(EnumType.STRING)
   private SuggestionStatus status = SuggestionStatus.PENDING;
@@ -45,7 +53,7 @@ public class RescheduleSuggestion {
     confidence = c;
     explanation = e;
     patientScript = script;
-    createdAt = java.time.LocalDateTime.now();
+    createdAt = LocalDateTime.now();
   }
 
   public RescheduleSuggestion(String id, Appointment a, Slot s, Provider alternate, TriggerReason r, double c, String e, String script) {
@@ -66,7 +74,7 @@ public class RescheduleSuggestion {
   }
 
   public Provider getAlternateProvider() { return alternateProvider; }
-  public java.time.LocalDateTime getCreatedAt() { return createdAt; }
+  public LocalDateTime getCreatedAt() { return createdAt; }
 
   public SuggestionStatus getStatus() {
     return status;

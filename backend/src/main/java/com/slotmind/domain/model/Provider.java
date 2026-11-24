@@ -1,8 +1,14 @@
 package com.slotmind.domain.model;
 
-import com.slotmind.domain.enums.*;
-import jakarta.persistence.*;
-import java.util.*;
+import com.slotmind.domain.enums.ProviderSpecialty;
+import com.slotmind.domain.enums.ProviderStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "providers")

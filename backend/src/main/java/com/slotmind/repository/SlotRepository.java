@@ -1,8 +1,9 @@
 package com.slotmind.repository;
 
-import com.slotmind.domain.enums.*;
+import com.slotmind.domain.enums.ProviderStatus;
+import com.slotmind.domain.enums.SlotStatus;
 import com.slotmind.domain.model.Slot;
-import java.util.*;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SlotRepository extends JpaRepository<Slot, String> {

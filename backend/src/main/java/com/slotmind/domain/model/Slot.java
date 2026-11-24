@@ -1,9 +1,16 @@
 package com.slotmind.domain.model;
 
-import com.slotmind.domain.enums.*;
-import jakarta.persistence.*;
-import java.time.*;
-import java.util.*;
+import com.slotmind.domain.enums.SlotStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "slots")
@@ -31,7 +38,7 @@ public class Slot {
   public Slot(Provider p, LocalDateTime start, LocalDateTime end) {
     provider = p;
     startTime = start;
-    durationMinutes = (int) java.time.Duration.between(start, end).toMinutes();
+    durationMinutes = (int) Duration.between(start, end).toMinutes();
   }
 
   public Slot(String id, Provider p, LocalDateTime start, int durationMinutes) {
