@@ -3,14 +3,17 @@ package com.slotmind.dto;
 import com.slotmind.domain.enums.*;
 import com.slotmind.domain.model.*;
 import java.time.*;
-import java.util.*;
 
 public final class Dtos {
-  private Dtos() {}
+  private Dtos() {
+  }
 
-  public record ProviderRequest(String name, ProviderSpecialty specialty) {}
+  public record ProviderRequest(String name, ProviderSpecialty specialty) {
+  }
 
-  public record SlotRequest(String providerId, LocalDateTime startTime, int durationMinutes, String room, String equipment) {}
+  public record SlotRequest(String providerId, LocalDateTime startTime, int durationMinutes, String room,
+      String equipment) {
+  }
 
   public record AppointmentRequest(
       String patientName,
@@ -21,7 +24,8 @@ public final class Dtos {
       String slotId,
       String roomRequirement,
       String equipmentRequirement,
-      String patientPreference) {}
+      String patientPreference) {
+  }
 
   public record SuggestionResponse(
       String id,
@@ -33,7 +37,8 @@ public final class Dtos {
       String explanation,
       String patientScript,
       LocalDateTime startTime,
-      String providerName) {
+       String providerName,
+       String alternateProviderId) {
     public static SuggestionResponse from(RescheduleSuggestion s) {
       return new SuggestionResponse(
           s.getId(),
@@ -45,7 +50,8 @@ public final class Dtos {
           s.getExplanation(),
           s.getPatientScript(),
           s.getSlot().getStartTime(),
-          s.getSlot().getProvider().getName());
+          s.getSlot().getProvider().getName(),
+          s.getAlternateProvider() == null ? null : s.getAlternateProvider().getId());
     }
   }
 

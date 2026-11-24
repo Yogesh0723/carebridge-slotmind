@@ -43,9 +43,14 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       return fallback.recommend(appointment, reason, slots);
     }
     try {
-      String prompt = "Return JSON {slotId,confidence,reasoning}. Appointment " + appointment.getId()
+      String triggerContext = switch (reason) {
+        case PROVIDER_OFFLINE -> "The original provider is offline; use an alternate provider if needed, while preserving specialty and choosing the earliest suitable slot.";
+        case SLOT_CANCELLED -> "The original slot was cancelled; prefer a new slot with the same provider, then preserve specialty.";
+        case INITIAL, MANUAL -> "This is an initial/manual recovery; prefer the original provider, then matching specialty.";
+      };
+      String prompt = "Return JSON {slotId,alternateProviderId,confidence,reasoning}. " + triggerContext + " Appointment " + appointment.getId()
           + " provider " + appointment.getProvider().getName() + " trigger " + reason
-          + " candidates " + slots.stream().map(s -> s.getId() + "@" + s.getStartTime()).toList();
+          + " candidates " + slots.stream().map(s -> s.getId() + "@" + s.getStartTime() + " provider=" + s.getProvider().getId()).toList();
       String body = mapper.writeValueAsString(java.util.Map.of(
           "model", model, "messages", List.of(java.util.Map.of("role", "user", "content", prompt))));
       HttpRequest request = HttpRequest.newBuilder(URI.create(url))
@@ -61,9 +66,12 @@ public class AiSchedulingStrategy implements SchedulingStrategy {
       String content = root.path("choices").path(0).path("message").path("content").asText();
       JsonNode answer = mapper.readTree(content.replace("```json", "").replace("```", "").trim());
       Slot selected = slots.stream().filter(s -> s.getId().equals(answer.path("slotId").asText())).findFirst().orElseThrow();
+      String alternateProviderId = answer.path("alternateProviderId").isTextual()
+          ? answer.path("alternateProviderId").asText() : selected.getProvider().getId();
       return List.of(new Recommendation(selected, answer.path("confidence").asDouble(.75),
           answer.path("reasoning").asText("The recommended slot is available."),
-          "We found a suitable replacement appointment with " + selected.getProvider().getName() + "."));
+          "We found a suitable replacement appointment with " + selected.getProvider().getName() + ".",
+          alternateProviderId));
     } catch (Exception ex) {
       log.warn("AI scheduling failed; using rule-based fallback for appointment {}: {}", appointment.getId(), ex.getMessage());
       return fallback.recommend(appointment, reason, slots);

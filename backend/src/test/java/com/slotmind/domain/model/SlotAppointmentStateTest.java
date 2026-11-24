@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.slotmind.domain.enums.AppointmentStatus;
 import com.slotmind.domain.enums.AppointmentType;
 import com.slotmind.domain.enums.ProviderSpecialty;
+import com.slotmind.domain.enums.SlotStatus;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +19,7 @@ class SlotAppointmentStateTest {
 
     slot.book();
 
-    assertEquals(com.slotmind.domain.enums.SlotStatus.BOOKED, slot.getStatus());
+    assertEquals(SlotStatus.BOOKED, slot.getStatus());
     assertThrows(IllegalStateException.class, slot::book);
   }
 

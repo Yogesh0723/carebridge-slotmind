@@ -121,7 +121,7 @@ class AppointmentController {
 
   @PostMapping("/{id}/suggest")
   AppointmentResponse suggest(@PathVariable String id) {
-    return AppointmentResponse.from(s.disrupt(id, TriggerReason.MANUAL));
+    return AppointmentResponse.from(s.disrupt(id, TriggerReason.INITIAL));
   }
 
   @GetMapping("/{id}/suggestions")

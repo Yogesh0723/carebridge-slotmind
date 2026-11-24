@@ -13,12 +13,15 @@ public class SuggestionService {
   private final SuggestionRepository suggestions;
   private final AppointmentRepository appointments;
   private final SlotRepository slots;
+  private final ProviderRepository providers;
 
   @Autowired
-  public SuggestionService(SuggestionRepository s, AppointmentRepository a, SlotRepository sl) {
+  public SuggestionService(SuggestionRepository s, AppointmentRepository a, SlotRepository sl,
+      ProviderRepository p) {
     suggestions = s;
     appointments = a;
     slots = sl;
+    providers = p;
   }
 
   public List<RescheduleSuggestion> forAppointment(String id) {
@@ -65,7 +68,8 @@ public class SuggestionService {
   }
 
   public RescheduleSuggestion create(
-      String aid, String sid, com.slotmind.domain.enums.TriggerReason r, double c, String e, String p) {
+      String aid, String sid, TriggerReason r, double c, String e, String p,
+      String alternateProviderId) {
     var slot = slots.findById(sid).orElseThrow();
     var appointment = appointments.findById(aid).orElseThrow();
     if (appointment.getStatus() != AppointmentStatus.RESCHEDULE_PENDING
@@ -82,7 +86,8 @@ public class SuggestionService {
                 "SUG-" + System.currentTimeMillis(),
             appointment,
             slot,
-                null,
+                alternateProviderId == null ? null : providers.findById(alternateProviderId).orElseThrow(
+                    () -> new IllegalArgumentException("Unknown alternate provider")),
             r,
             c,
             e,

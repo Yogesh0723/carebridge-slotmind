@@ -1,5 +1,8 @@
 package com.slotmind.agent;
 
+import com.slotmind.domain.enums.AppointmentStatus;
+import com.slotmind.domain.enums.ProviderStatus;
+import com.slotmind.domain.enums.SlotStatus;
 import com.slotmind.domain.event.*;
 import com.slotmind.repository.*;
 import com.slotmind.service.*;
@@ -35,8 +38,8 @@ public class RescheduleAgentListener {
   public void handle(DisruptionEvent e) {
     try {
       var a = appointments.findById(e.appointmentId()).orElseThrow();
-      if (a.getStatus() != com.slotmind.domain.enums.AppointmentStatus.RESCHEDULE_PENDING
-          || a.getProvider().getStatus() == com.slotmind.domain.enums.ProviderStatus.AVAILABLE) {
+      if (a.getStatus() != AppointmentStatus.RESCHEDULE_PENDING
+          || a.getProvider().getStatus() == ProviderStatus.AVAILABLE) {
         log.debug("Skipping reschedule event for {} because the appointment is no longer disrupted", e.appointmentId());
         return;
       }
@@ -46,8 +49,8 @@ public class RescheduleAgentListener {
             a,
             e.reason(),
             slots.findByStatusAndProviderStatus(
-                com.slotmind.domain.enums.SlotStatus.OPEN,
-                com.slotmind.domain.enums.ProviderStatus.AVAILABLE))
+                SlotStatus.OPEN,
+                ProviderStatus.AVAILABLE))
           .forEach(
             r ->
                 suggestions.create(
@@ -56,7 +59,8 @@ public class RescheduleAgentListener {
                     e.reason(),
                     r.confidence(),
                     r.explanation(),
-                    r.patientScript()));
+                    r.patientScript(),
+                    r.alternateProviderId()));
     } catch (Exception ex) {
       log.error("Failed to create reschedule suggestions for {}", e.appointmentId(), ex);
     }

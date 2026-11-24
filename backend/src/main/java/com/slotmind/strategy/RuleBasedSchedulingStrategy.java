@@ -8,7 +8,9 @@ public class RuleBasedSchedulingStrategy implements SchedulingStrategy {
   public List<Recommendation> recommend(Appointment a, TriggerReason r, List<Slot> slots) {
     return slots.stream()
         .filter(s -> s.getProvider().getSpecialty() == a.getProvider().getSpecialty())
-        .sorted(Comparator.comparing(Slot::getStartTime))
+        .sorted(Comparator
+            .comparing((Slot s) -> !s.getProvider().getId().equals(a.getProvider().getId()))
+            .thenComparing(Slot::getStartTime))
         .limit(3)
         .map(
             s ->
