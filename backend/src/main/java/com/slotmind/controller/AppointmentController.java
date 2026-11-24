@@ -2,6 +2,7 @@ package com.slotmind.controller;
 
 import com.slotmind.domain.enums.AppointmentStatus;
 import com.slotmind.domain.enums.TriggerReason;
+import com.slotmind.domain.model.Appointment;
 import com.slotmind.dto.AppointmentRequest;
 import com.slotmind.dto.AppointmentResponse;
 import com.slotmind.dto.SuggestionResponse;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/appointments")
+@RequestMapping({"/api/appointments", "/appointments"})
 public class AppointmentController {
   private final AppointmentService appointmentService;
   private final SuggestionService suggestionService;
@@ -33,10 +34,10 @@ public class AppointmentController {
   @GetMapping
   public List<AppointmentResponse> getAppointments(
       @RequestParam(required = false) AppointmentStatus status) {
-    return appointmentService.findAll().stream()
-        .filter(appointment -> status == null || appointment.getStatus() == status)
-        .map(AppointmentResponse::from)
-        .toList();
+    List<Appointment> list = (status == null)
+        ? appointmentService.findAll()
+        : appointmentService.findByStatus(status);
+    return list.stream().map(AppointmentResponse::from).toList();
   }
 
   @PostMapping
@@ -50,6 +51,11 @@ public class AppointmentController {
   @PostMapping("/{id}/cancel")
   public AppointmentResponse cancelAppointment(@PathVariable String id) {
     return AppointmentResponse.from(appointmentService.cancel(id));
+  }
+
+  @PostMapping("/{id}/complete")
+  public AppointmentResponse completeAppointment(@PathVariable String id) {
+    return AppointmentResponse.from(appointmentService.complete(id));
   }
 
   @PostMapping("/{id}/disrupt")
@@ -69,13 +75,25 @@ public class AppointmentController {
   }
 
   @GetMapping(value = "/{id}/suggest/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public SseEmitter streamSuggestions(@PathVariable String id) {
+  public SseEmitter streamSuggestionsGet(@PathVariable String id) {
+    return handleStream(id);
+  }
+
+  @PostMapping(value = "/{id}/suggest/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  public SseEmitter streamSuggestionsPost(@PathVariable String id) {
+    return handleStream(id);
+  }
+
+  private SseEmitter handleStream(String id) {
     SseEmitter emitter = new SseEmitter(120000L);
     try {
       emitter.send(SseEmitter.event().name("reasoning").data(
           "SlotMind is evaluating provider specialty, time proximity, and patient continuity..."));
-      emitter.send(SseEmitter.event().name("complete").data(
-          suggestionService.findForAppointment(id).stream().map(SuggestionResponse::from).toList()));
+      List<SuggestionResponse> suggestions = suggestionService.findForAppointment(id)
+          .stream()
+          .map(SuggestionResponse::from)
+          .toList();
+      emitter.send(SseEmitter.event().name("complete").data(suggestions));
       emitter.complete();
     } catch (Exception exception) {
       emitter.completeWithError(exception);

@@ -14,6 +14,8 @@ export const api = {
   slots: () => request<Slot[]>("/slots"),
   createAppointment: (body: Record<string, unknown>) => request<Appointment>("/appointments", { method: "POST", body: JSON.stringify(body) }),
   cancelAppointment: (id: string) => request<Appointment>(`/appointments/${id}/cancel`, { method: "POST" }),
+  completeAppointment: (id: string) => request<Appointment>(`/appointments/${id}/complete`, { method: "POST" }),
+  suggest: (id: string) => request<Appointment>(`/appointments/${id}/suggest`, { method: "POST" }),
   providerStatus: (id: string, value: string) => request<Provider>(`/providers/${id}/status?value=${value}`, { method: "PATCH" }),
   slotStatus: (id: string, value: string) => request<Slot>(`/slots/${id}/status?value=${value}`, { method: "PATCH" }),
   suggestions: (id: string) =>

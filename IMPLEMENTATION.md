@@ -255,16 +255,16 @@ POST /api/appointments/{id}/suggest
 The listener is declared as:
 
 ```java
-@Async
+@Async("taskExecutor")
 @Transactional(propagation = REQUIRES_NEW)
 @TransactionalEventListener(phase = AFTER_COMMIT)
 ```
 
 ### Why this design is used
 
-The disruption request must not wait for an external AI gateway or suggestion persistence. The event is only processed after the state-changing transaction commits. `@Async` moves work to the `slotmind-agent-*` executor. `REQUIRES_NEW` gives the agent its own transaction.
+The disruption request must not wait for an external AI gateway or suggestion persistence. The event is only processed after the state-changing transaction commits. `@Async("taskExecutor")` moves work to a bounded virtual-thread executor. `REQUIRES_NEW` gives the agent its own transaction.
 
-The executor has core pool size 2, maximum 8, and queue capacity 100.
+The executor permits up to 32 concurrent tasks, uses Java 21 virtual threads, and waits up to 30 seconds for tasks during application shutdown. Spring graceful server shutdown and a 30-second lifecycle shutdown phase allow in-flight requests and agent work to complete cleanly. SQLite remains configured with a single JDBC connection because SQLite write concurrency is serialized; virtual threads improve waiting-task scalability without creating database lock contention.
 
 ### Listener algorithm
 

@@ -2,13 +2,7 @@ package com.slotmind.domain.model;
 
 import com.slotmind.domain.enums.AppointmentStatus;
 import com.slotmind.domain.enums.AppointmentType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "appointments")
@@ -35,17 +29,19 @@ public class Appointment {
   @Enumerated(EnumType.STRING)
   private AppointmentStatus status = AppointmentStatus.CONFIRMED;
 
-  @Version private long version;
+  @Version
+  private long version;
 
-  protected Appointment() {}
+  protected Appointment() {
+  }
 
   public Appointment(String patientName, String contact, AppointmentType type, Provider p, Slot s) {
     this.patientName = patientName;
-    patientContact = contact;
+    this.patientContact = contact;
     this.type = type;
-    provider = p;
-    slot = s;
-    durationMinutes = defaultDuration(type);
+    this.provider = p;
+    this.slot = s;
+    this.durationMinutes = defaultDuration(type);
   }
 
   public Appointment(String id, String patientName, String contact, AppointmentType type, Provider p, Slot s) {
@@ -59,16 +55,47 @@ public class Appointment {
   }
 
   private static int defaultDuration(AppointmentType type) {
-    return switch (type) { case URGENT, FOLLOW_UP -> 30; case CONSULTATION -> 45; case PROCEDURE -> 60; default -> 30; };
+    if (type == null)
+      return 30;
+    return switch (type) {
+      case URGENT, FOLLOW_UP -> 30;
+      case CONSULTATION -> 45;
+      case PROCEDURE -> 60;
+      default -> 30;
+    };
   }
-  public String getRoomRequirement() { return roomRequirement; }
-  public String getEquipmentRequirement() { return equipmentRequirement; }
-  public String getPatientPreference() { return patientPreference; }
-  public int getDurationMinutes() { return durationMinutes; }
-  public void setRoomRequirement(String value) { roomRequirement = value; }
-  public void setEquipmentRequirement(String value) { equipmentRequirement = value; }
-  public void setPatientPreference(String value) { patientPreference = value; }
-  public void setDurationMinutes(int value) { durationMinutes = value; }
+
+  public String getRoomRequirement() {
+    return roomRequirement;
+  }
+
+  public String getEquipmentRequirement() {
+    return equipmentRequirement;
+  }
+
+  public String getPatientPreference() {
+    return patientPreference;
+  }
+
+  public int getDurationMinutes() {
+    return durationMinutes;
+  }
+
+  public void setRoomRequirement(String value) {
+    roomRequirement = value;
+  }
+
+  public void setEquipmentRequirement(String value) {
+    equipmentRequirement = value;
+  }
+
+  public void setPatientPreference(String value) {
+    patientPreference = value;
+  }
+
+  public void setDurationMinutes(int value) {
+    durationMinutes = value;
+  }
 
   public String getId() {
     return id;
@@ -99,26 +126,35 @@ public class Appointment {
   }
 
   public void markPending() {
-    if (status != AppointmentStatus.CONFIRMED)
+    if (status != AppointmentStatus.CONFIRMED) {
       throw new IllegalStateException("Appointment cannot be disrupted");
+    }
     status = AppointmentStatus.RESCHEDULE_PENDING;
   }
 
   public void reschedule(Slot newSlot) {
-    if (status != AppointmentStatus.RESCHEDULE_PENDING)
+    if (status != AppointmentStatus.RESCHEDULE_PENDING) {
       throw new IllegalStateException("Suggestion is not pending");
-    slot = newSlot;
-    provider = newSlot.getProvider();
-    status = AppointmentStatus.RESCHEDULED;
+    }
+    this.slot = newSlot;
+    this.provider = newSlot.getProvider();
+    this.status = AppointmentStatus.RESCHEDULED;
+  }
+
+  public void complete() {
+    if (status != AppointmentStatus.CONFIRMED && status != AppointmentStatus.RESCHEDULED) {
+      throw new IllegalStateException("Only confirmed or rescheduled appointments can be completed");
+    }
+    this.status = AppointmentStatus.COMPLETED;
   }
 
   public void cancel() {
-    status = AppointmentStatus.CANCELLED;
+    this.status = AppointmentStatus.CANCELLED;
   }
 
   public void restoreConfirmed() {
     if (status == AppointmentStatus.RESCHEDULE_PENDING) {
-      status = AppointmentStatus.CONFIRMED;
+      this.status = AppointmentStatus.CONFIRMED;
     }
   }
 }

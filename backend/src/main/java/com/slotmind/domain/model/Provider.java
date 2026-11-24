@@ -25,11 +25,13 @@ public class Provider {
   @Enumerated(EnumType.STRING)
   private ProviderStatus status = ProviderStatus.AVAILABLE;
 
-  @Version private long version;
+  @Version
+  private long version;
 
   private int maxDailyAppointments = 20;
 
-  protected Provider() {}
+  protected Provider() {
+  }
 
   public Provider(String name, ProviderSpecialty specialty) {
     this.name = name;
@@ -62,8 +64,13 @@ public class Provider {
     return version;
   }
 
-  public int getMaxDailyAppointments() { return maxDailyAppointments; }
-  public void setMaxDailyAppointments(int value) { maxDailyAppointments = value; }
+  public int getMaxDailyAppointments() {
+    return maxDailyAppointments;
+  }
+
+  public void setMaxDailyAppointments(int value) {
+    maxDailyAppointments = value;
+  }
 
   public void changeStatus(ProviderStatus s) {
     status = s;

@@ -17,7 +17,7 @@ spring:
     init:
       mode: never
 slotmind:
-  strategy: ${SLOTMIND_STRATEGY:RULE_BASED}
+  strategy: ${SLOTMIND_STRATEGY:AI}
   ai:
     url: ${SLOTMIND_AI_URL:https://litellm-qc.zycus.net/v1/chat/completions}
     token: ${SLOTMIND_AI_TOKEN:}

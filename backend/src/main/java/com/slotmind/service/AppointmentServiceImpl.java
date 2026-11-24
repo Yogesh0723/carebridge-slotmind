@@ -38,6 +38,15 @@ public class AppointmentServiceImpl implements AppointmentService {
   public List<Appointment> findAll() { return appointments.findAll(); }
 
   @Override
+  @Transactional(readOnly = true)
+  public List<Appointment> findByStatus(AppointmentStatus status) {
+    if (status == null) {
+      return appointments.findAll();
+    }
+    return appointments.findByStatus(status);
+  }
+
+  @Override
   @Transactional
   public Appointment create(String n, String c, AppointmentType t, String pid, String sid,
       String room, String equipment, String preference) {
@@ -76,10 +85,22 @@ public class AppointmentServiceImpl implements AppointmentService {
 
   @Override
   @Transactional
+  public Appointment complete(String id) {
+    Appointment appointment = appointments.findById(id).orElseThrow();
+    appointment.complete();
+    return appointments.save(appointment);
+  }
+
+  @Override
+  @Transactional
   public Appointment disrupt(String id, TriggerReason reason) {
     Appointment appointment = appointments.findById(id).orElseThrow();
-    appointment.markPending(); Appointment saved = appointments.save(appointment);
-    events.publishEvent(new DisruptionEvent(saved.getId(), reason)); return saved;
+    if (appointment.getStatus() == AppointmentStatus.CONFIRMED) {
+      appointment.markPending();
+      appointment = appointments.save(appointment);
+    }
+    events.publishEvent(new DisruptionEvent(appointment.getId(), reason));
+    return appointment;
   }
 
   @Override

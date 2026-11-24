@@ -5,6 +5,7 @@ import com.slotmind.domain.enums.ProviderStatus;
 import com.slotmind.domain.enums.SlotStatus;
 import com.slotmind.domain.enums.SuggestionStatus;
 import com.slotmind.domain.enums.TriggerReason;
+import com.slotmind.domain.model.Provider;
 import com.slotmind.domain.model.RescheduleSuggestion;
 import com.slotmind.repository.AppointmentRepository;
 import com.slotmind.repository.ProviderRepository;
@@ -26,10 +27,10 @@ public class SuggestionServiceImpl implements SuggestionService {
   @Autowired
   public SuggestionServiceImpl(SuggestionRepository s, AppointmentRepository a, SlotRepository sl,
       ProviderRepository p) {
-    suggestions = s;
-    appointments = a;
-    slots = sl;
-    providers = p;
+    this.suggestions = s;
+    this.appointments = a;
+    this.slots = sl;
+    this.providers = p;
   }
 
   @Override
@@ -85,6 +86,7 @@ public class SuggestionServiceImpl implements SuggestionService {
   }
 
   @Override
+  @Transactional
   public RescheduleSuggestion create(
       String aid, String sid, TriggerReason r, double c, String e, String p,
       String alternateProviderId) {
@@ -95,20 +97,23 @@ public class SuggestionServiceImpl implements SuggestionService {
         || slot.getProvider().getStatus() != ProviderStatus.AVAILABLE) {
       throw new IllegalStateException("Suggestion candidate is no longer available");
     }
-    var existing = suggestions.findByAppointmentId(aid).stream()
-        .filter(x -> x.getStatus() == SuggestionStatus.PENDING && x.getReason() == r)
-        .findFirst();
-    if (existing.isPresent()) return existing.get();
+
+    // Check if an active PENDING suggestion for this slot already exists
+    List<RescheduleSuggestion> existing = suggestions.findByAppointmentIdAndSlotId(aid, sid);
+    for (RescheduleSuggestion item : existing) {
+      if (item.getStatus() == SuggestionStatus.PENDING) {
+        return item;
+      }
+    }
+
+    Provider altProvider = null;
+    if (alternateProviderId != null && !alternateProviderId.isBlank()) {
+      altProvider = providers.findById(alternateProviderId).orElse(slot.getProvider());
+    }
+
     return suggestions.save(
-            new RescheduleSuggestion(
-                "SUG-" + System.currentTimeMillis(),
-            appointment,
-            slot,
-                alternateProviderId == null ? null : providers.findById(alternateProviderId).orElseThrow(
-                    () -> new IllegalArgumentException("Unknown alternate provider")),
-            r,
-            c,
-            e,
-            p));
+        new RescheduleSuggestion(
+            "SUG-" + System.currentTimeMillis() + "-" + (existing.size() + 1),
+            appointment, slot, altProvider, r, c, e, p));
   }
 }

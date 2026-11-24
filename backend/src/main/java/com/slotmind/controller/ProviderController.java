@@ -5,6 +5,7 @@ import com.slotmind.domain.model.Provider;
 import com.slotmind.dto.ProviderRequest;
 import com.slotmind.service.ProviderService;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/providers")
+@RequestMapping({"/api/providers", "/providers"})
 public class ProviderController {
   private final ProviderService providerService;
 
@@ -34,8 +35,23 @@ public class ProviderController {
   }
 
   @PatchMapping("/{id}/status")
-  public Provider updateProviderStatus(
+  public Provider updateProviderStatusParam(
       @PathVariable String id, @RequestParam ProviderStatus value) {
     return providerService.updateStatus(id, value);
+  }
+
+  @PatchMapping("/{id}")
+  public Provider updateProviderStatusDirect(
+      @PathVariable String id,
+      @RequestParam(required = false) ProviderStatus status,
+      @RequestBody(required = false) Map<String, Object> body) {
+    ProviderStatus targetStatus = status;
+    if (targetStatus == null && body != null && body.containsKey("status")) {
+      targetStatus = ProviderStatus.valueOf(String.valueOf(body.get("status")).toUpperCase());
+    }
+    if (targetStatus == null) {
+      targetStatus = ProviderStatus.AVAILABLE;
+    }
+    return providerService.updateStatus(id, targetStatus);
   }
 }

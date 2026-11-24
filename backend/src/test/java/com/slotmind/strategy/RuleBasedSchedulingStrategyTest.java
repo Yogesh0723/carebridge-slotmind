@@ -46,4 +46,21 @@ class RuleBasedSchedulingStrategyTest {
     assertEquals(3, result.size());
     assertEquals("S4", result.get(0).slot().getId());
   }
+
+  @Test
+  void crossCoverageProvidedWhenAllSpecialtyProvidersUnavailable() {
+    var general = new Provider("PRV-G", "Dr. General", ProviderSpecialty.GENERAL);
+    var specialist = new Provider("PRV-S", "Dr. Specialist", ProviderSpecialty.SPECIALIST);
+    var original = new Slot("OLD", general, LocalDateTime.now().plusHours(1), 30);
+    original.book();
+    var appointment = new Appointment("APT", "Patient", "contact", AppointmentType.ROUTINE, general, original);
+    var wrongSpecialty = new Slot("CROSS", specialist, LocalDateTime.now().plusHours(3), 30);
+
+    var result = strategy.recommend(appointment, TriggerReason.PROVIDER_OFFLINE, List.of(wrongSpecialty));
+
+    assertEquals(1, result.size());
+    assertEquals("CROSS", result.get(0).slot().getId());
+    assertEquals(0.65, result.get(0).confidence());
+    assertTrue(result.get(0).explanation().contains("cross-coverage"));
+  }
 }
