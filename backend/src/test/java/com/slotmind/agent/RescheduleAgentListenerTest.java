@@ -62,6 +62,7 @@ class RescheduleAgentListenerTest {
 
     listener.handle(new DisruptionEvent("APT-1", TriggerReason.SLOT_CANCELLED));
 
+    verify(suggestions, times(1)).clearPendingForAppointment("APT-1");
     verify(suggestions, times(1)).create(
         eq("APT-1"), eq("SLT-NEW"), eq(TriggerReason.SLOT_CANCELLED), eq(1), eq(0.9), any(), any(), any());
   }

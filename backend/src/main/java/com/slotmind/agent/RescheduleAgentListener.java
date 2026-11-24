@@ -81,6 +81,9 @@ public class RescheduleAgentListener {
         return;
       }
 
+      // A new run supersedes the previous active batch while preserving resolved history.
+      suggestions.clearPendingForAppointment(a.getId());
+
       int createdCount = 0;
       for (Recommendation r : recommendations) {
         try {
